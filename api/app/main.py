@@ -473,3 +473,28 @@ def get_analytics_summary(scenario_id: str, req: RunRequest) -> Envelope[Dict[st
     except Exception as e:
         logger.error(f"Analytics summary failed: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+# ── Static Files and SPA Fallback ─────────────────────────────────────────────
+from pathlib import Path
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+_static_dir = Path(__file__).resolve().parents[1] / "static"
+if not _static_dir.is_dir():
+    _static_dir = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+if _static_dir.is_dir():
+    _assets_dir = _static_dir / "assets"
+    if _assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        target = _static_dir / full_path
+        if full_path and target.is_file():
+            return FileResponse(target)
+        index_file = _static_dir / "index.html"
+        if index_file.is_file():
+            return FileResponse(index_file)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
