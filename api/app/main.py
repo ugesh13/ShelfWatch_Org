@@ -475,6 +475,20 @@ def get_analytics_summary(scenario_id: str, req: RunRequest) -> Envelope[Dict[st
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
+# ── Dual Route Registration (Vercel strips /api prefix on serverless calls) ──
+from fastapi.routing import APIRoute
+
+_api_routes = [r for r in list(app.routes) if isinstance(r, APIRoute) and r.path.startswith("/api/")]
+for r in _api_routes:
+    stripped = r.path[4:]
+    app.router.add_api_route(
+        stripped,
+        endpoint=r.endpoint,
+        methods=r.methods,
+        response_model=r.response_model,
+        status_code=r.status_code,
+    )
+
 # ── Static Files and SPA Fallback ─────────────────────────────────────────────
 from pathlib import Path
 from fastapi.responses import FileResponse
@@ -491,6 +505,8 @@ if _static_dir.is_dir():
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
+        if full_path.startswith("api/") or full_path == "api":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
         target = _static_dir / full_path
         if full_path and target.is_file():
             return FileResponse(target)
