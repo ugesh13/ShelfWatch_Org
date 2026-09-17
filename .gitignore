@@ -1,0 +1,25 @@
+.venv/
+.cache/
+.audit/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.db
+*.db-shm
+*.db-wal
+node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+*.log
+.env
+
+# IDE / Agent internals
+.agents/
+memory.md
+
+# Raw presentation files, notes & legacy docs
+*.pdf
+pdf_page_*.png
+teammate_strategy.txt
+docs/legacy/
