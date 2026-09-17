@@ -43,6 +43,7 @@ app = FastAPI(
     title="ShelfWatch API",
     description="Contagion-aware medicine shortage early warning and safe redistribution engine",
     version=SCHEMA_VERSION,
+    redirect_slashes=False,
 )
 
 allowed_origins_env = os.environ.get("SHELFWATCH_ALLOWED_ORIGINS", "*")
@@ -55,6 +56,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+from starlette.types import ASGIApp, Receive, Scope, Send
+
+class VercelPathMiddleware:
+    """Restores original request path from x-matched-path header when Vercel rewrites to /api/index.py."""
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] == "http":
+            headers = dict(scope.get("headers", []))
+            matched_path = headers.get(b"x-matched-path", b"").decode("latin1")
+            if matched_path and not matched_path.endswith(".py"):
+                scope["path"] = matched_path.split("?")[0]
+        await self.app(scope, receive, send)
+
+app.add_middleware(VercelPathMiddleware)
 
 
 @app.middleware("http")
