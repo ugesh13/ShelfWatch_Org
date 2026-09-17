@@ -59,40 +59,41 @@ app.add_middleware(
 
 
 from starlette.types import ASGIApp, Receive, Scope, Send
+import urllib.parse
 
 class VercelPathMiddleware:
-    """Restores original request path from Vercel headers when rewritten to /api/index.py."""
+    """Restores original request path when rewritten by Vercel."""
     def __init__(self, app: ASGIApp):
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         if scope["type"] == "http":
-            headers = dict(scope.get("headers", []))
-            matched_path = (
-                headers.get(b"x-matched-path", b"")
-                or headers.get(b"x-vercel-matched-path", b"")
-                or headers.get(b"x-now-route-matches", b"")
-                or headers.get(b"x-forwarded-url", b"")
-                or headers.get(b"x-original-url", b"")
-            ).decode("latin1")
-            if matched_path and not matched_path.endswith(".py"):
-                scope["path"] = matched_path.split("?")[0]
+            current_path = scope.get("path", "")
+
+            # 1. Check if __path__ was passed via query parameter from Vercel rewrite
+            query_string = scope.get("query_string", b"").decode("latin1")
+            if "__path__=" in query_string:
+                params = urllib.parse.parse_qs(query_string)
+                if "__path__" in params and params["__path__"]:
+                    p = params["__path__"][0].strip()
+                    if not p.startswith("/"):
+                        p = "/" + p
+                    if not p.startswith("/api/"):
+                        p = "/api" + p
+                    scope["path"] = p
+
+            # 2. If path is missing, root, or pointing to the function filename, check headers
+            elif not current_path or current_path in ("/", "/api", "/api/", "/api/index", "/api/index.py"):
+                headers = dict(scope.get("headers", []))
+                for header_key in (b"x-forwarded-url", b"x-original-url", b"x-rewrite-url"):
+                    val = headers.get(header_key, b"").decode("latin1").split("?")[0].strip()
+                    if val and val not in ("/", "/api", "/api/", "/api/index", "/api/index.py"):
+                        scope["path"] = val
+                        break
+
         await self.app(scope, receive, send)
 
 app.add_middleware(VercelPathMiddleware)
-
-
-@app.middleware("http")
-async def debug_path_middleware(request, call_next):
-    if "debug" in request.url.path:
-        from fastapi.responses import JSONResponse
-        return JSONResponse({
-            "url_path": request.url.path,
-            "scope_path": request.scope.get("path"),
-            "scope_raw_path": str(request.scope.get("raw_path")),
-            "routes": [getattr(r, "path", "") for r in request.app.routes if getattr(r, "path", "")],
-        })
-    return await call_next(request)
 
 
 def _validate_sku(snapshot, sku_id: str) -> None:
