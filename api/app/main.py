@@ -491,26 +491,44 @@ for r in _api_routes:
 
 # ── Static Files and SPA Fallback ─────────────────────────────────────────────
 from pathlib import Path
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-_static_dir = Path(__file__).resolve().parents[1] / "static"
-if not _static_dir.is_dir():
-    _static_dir = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+_possible_dirs = [
+    Path(__file__).resolve().parents[1] / "static",
+    Path(__file__).resolve().parents[2] / "frontend" / "dist",
+    Path("/var/task/api/static"),
+    Path("/var/task/static"),
+]
+_static_dir = next((d for d in _possible_dirs if d.is_dir()), None)
 
-if _static_dir.is_dir():
-    _assets_dir = _static_dir / "assets"
-    if _assets_dir.is_dir():
-        app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
+if _static_dir and (_static_dir / "assets").is_dir():
+    app.mount("/assets", StaticFiles(directory=str(_static_dir / "assets")), name="assets")
 
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        if full_path.startswith("api/") or full_path == "api":
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
+INDEX_HTML_FALLBACK = """<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ShelfWatch — Medicine Shortage Early Warning & Safe Redistribution</title>
+    <script type="module" crossorigin src="/assets/index-BpeiOg7g.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BrAPOKXB.css">
+  </head>
+  <body class="bg-background text-foreground antialiased font-sans overflow-x-hidden min-h-screen">
+    <div id="root"></div>
+  </body>
+</html>"""
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    if full_path.startswith("api/") or full_path == "api":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
+    if _static_dir:
         target = _static_dir / full_path
         if full_path and target.is_file():
             return FileResponse(target)
         index_file = _static_dir / "index.html"
         if index_file.is_file():
             return FileResponse(index_file)
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
+    return HTMLResponse(content=INDEX_HTML_FALLBACK, media_type="text/html")

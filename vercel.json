@@ -1,4 +1,11 @@
 {
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/**/*.py": {
+      "includeFiles": "api/static/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -6,7 +13,7 @@
     },
     {
       "source": "/(.*)",
-      "destination": "/api/index.py"
+      "destination": "/index.html"
     }
   ]
 }
