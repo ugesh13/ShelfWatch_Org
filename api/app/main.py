@@ -57,6 +57,19 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def debug_path_middleware(request, call_next):
+    if "debug" in request.url.path:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({
+            "url_path": request.url.path,
+            "scope_path": request.scope.get("path"),
+            "scope_raw_path": str(request.scope.get("raw_path")),
+            "routes": [getattr(r, "path", "") for r in request.app.routes if getattr(r, "path", "")],
+        })
+    return await call_next(request)
+
+
 def _validate_sku(snapshot, sku_id: str) -> None:
     if sku_id not in {product.sku_id for product in snapshot.products}:
         raise HTTPException(status_code=422, detail=f"Unknown SKU {sku_id}")
