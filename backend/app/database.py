@@ -28,12 +28,29 @@ class Repository:
 
     def __init__(self, database_path: str | Path | None = None):
         location = str(database_path) if database_path is not None else ":memory:"
-        if location != ":memory:":
-            Path(location).parent.mkdir(parents=True, exist_ok=True)
         self._lock = RLock()
-        self._connection = sqlite3.connect(
-            location, timeout=30, isolation_level=None, check_same_thread=False
-        )
+        if location != ":memory:":
+            try:
+                Path(location).parent.mkdir(parents=True, exist_ok=True)
+                self._connection = sqlite3.connect(
+                    location, timeout=30, isolation_level=None, check_same_thread=False
+                )
+            except Exception:
+                location = "/tmp/shelfwatch_v1.db"
+                try:
+                    Path(location).parent.mkdir(parents=True, exist_ok=True)
+                    self._connection = sqlite3.connect(
+                        location, timeout=30, isolation_level=None, check_same_thread=False
+                    )
+                except Exception:
+                    location = ":memory:"
+                    self._connection = sqlite3.connect(
+                        location, timeout=30, isolation_level=None, check_same_thread=False
+                    )
+        else:
+            self._connection = sqlite3.connect(
+                location, timeout=30, isolation_level=None, check_same_thread=False
+            )
         self._connection.row_factory = sqlite3.Row
         self._connection.execute("PRAGMA foreign_keys = ON")
         self._connection.executescript("""

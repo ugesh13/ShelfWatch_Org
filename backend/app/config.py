@@ -4,7 +4,10 @@ import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATABASE_PATH = Path(os.environ.get("SHELFWATCH_DB", PROJECT_ROOT / "data" / "shelfwatch_v1.db"))
+if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    DATABASE_PATH = Path(os.environ.get("SHELFWATCH_DB", "/tmp/shelfwatch_v1.db"))
+else:
+    DATABASE_PATH = Path(os.environ.get("SHELFWATCH_DB", PROJECT_ROOT / "data" / "shelfwatch_v1.db"))
 SCHEMA_VERSION = "1.0"
 ALGORITHM_VERSION = "inventory-1.1"
 HISTORY_DAYS = 90
